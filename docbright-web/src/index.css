@@ -848,3 +848,174 @@ img { display: block; max-width: 100%; }
   .privacy-panel { grid-column: auto; }
   .app-footer { flex-direction: column; text-align: center; }
 }
+
+/* ============================================================
+   Ink Color Replacement UI
+   ============================================================ */
+
+/* Row that holds the label + swatches + custom picker + reset */
+.ink-color-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: rgba(0, 212, 255, 0.04);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: var(--radius-sm);
+}
+
+.ink-color-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  white-space: nowrap;
+  min-width: 64px;
+}
+
+/* Container for the quick-access swatch buttons */
+.ink-swatches {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* Each circular swatch button */
+.color-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.15);
+  background: var(--swatch-color, #888);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.color-swatch:hover {
+  transform: scale(1.25);
+  border-color: rgba(255,255,255,0.6);
+}
+
+.color-swatch.active {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px var(--cyan-glow), 0 0 8px var(--swatch-color, var(--cyan));
+  transform: scale(1.15);
+}
+
+/* Wrapper for the native <input type="color"> */
+.custom-color-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* The visible colored circle that sits on top of the hidden input */
+.custom-color-preview {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px dashed rgba(0, 212, 255, 0.5);
+  display: inline-block;
+  transition: border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.custom-color-wrap:hover .custom-color-preview {
+  border-color: var(--cyan);
+}
+
+/* Hide the native color picker visually but keep it clickable */
+.custom-color-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+/* × reset button */
+.ink-reset-btn {
+  background: none;
+  border: 1px solid rgba(239,68,68,0.35);
+  color: var(--red);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.ink-reset-btn:hover {
+  background: rgba(239,68,68,0.15);
+  border-color: var(--red);
+}
+
+/* Active ink label — shows color name after a swatch is chosen */
+.ink-active-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  margin-left: 4px;
+}
+
+/* Tiny dot used in ink-active-label */
+.active-ink-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+  box-shadow: 0 0 4px currentColor;
+}
+
+/* Rail-side swatches — smaller, tighter wrap */
+.rail-swatches {
+  gap: 4px;
+}
+
+.rail-swatches .color-swatch {
+  width: 18px;
+  height: 18px;
+}
+
+/* Row inside the rail for the custom picker + reset + hint */
+.rail-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.rail-color-hint {
+  font-size: 10px;
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

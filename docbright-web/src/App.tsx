@@ -7,6 +7,7 @@ import {
   HardDriveDownload,
   Info,
   LoaderCircle,
+  Palette,
   RotateCw,
   ShieldCheck,
   Sparkles,
@@ -35,6 +36,19 @@ import {
 } from './lib/documents';
 
 const STORAGE_KEY = 'docbright-queue-v2';
+
+/** Quick-access ink color palette */
+const INK_SWATCHES = [
+  { label: 'Navy Blue',     hex: '#003087' },
+  { label: 'Deep Red',      hex: '#c0152a' },
+  { label: 'Forest Green',  hex: '#1a6b2a' },
+  { label: 'Purple',        hex: '#6b21a8' },
+  { label: 'Teal',          hex: '#0d7377' },
+  { label: 'Brown',         hex: '#7c3d12' },
+  { label: 'Royal Blue',    hex: '#1e40af' },
+  { label: 'Dark Orange',   hex: '#c2550a' },
+];
+
 
 function makeId() {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -74,6 +88,7 @@ function App() {
   const [errorMessage, setErrorMessage] = useState('');
   const [storageWarning, setStorageWarning] = useState('');
   const [batchPreset, setBatchPreset] = useState<Preset>('Print Ready');
+  const [batchInkColor, setBatchInkColor] = useState('');
   const [confirmClear, setConfirmClear] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,18 +165,18 @@ function App() {
     }
   };
 
-  const enhanceOne = async (item: DocumentItem, preset = item.preset) => {
+  const enhanceOne = async (item: DocumentItem, preset = item.preset, inkColor = item.inkColor ?? '') => {
     setActiveAction(item.id);
     setErrorMessage('');
     setDocuments((current) =>
-      current.map((c) => (c.id === item.id ? { ...c, status: 'processing', preset, error: undefined } : c)),
+      current.map((c) => (c.id === item.id ? { ...c, status: 'processing', preset, inkColor, error: undefined } : c)),
     );
     try {
-      const result = await enhanceImage(item.originalUri, item.rotation, preset);
+      const result = await enhanceImage(item.originalUri, item.rotation, preset, inkColor);
       setDocuments((current) =>
         current.map((c) =>
           c.id === item.id
-            ? { ...c, enhancedUri: result.uri, status: 'completed', preset, width: result.width, height: result.height }
+            ? { ...c, enhancedUri: result.uri, status: 'completed', preset, inkColor, width: result.width, height: result.height }
             : c,
         ),
       );
@@ -178,7 +193,7 @@ function App() {
   const enhanceAll = async () => {
     const waiting = documents.filter((item) => item.status !== 'processing');
     setActiveAction('all');
-    for (const item of waiting) await enhanceOne(item, batchPreset);
+    for (const item of waiting) await enhanceOne(item, batchPreset, batchInkColor || item.inkColor);
     setActiveAction('');
   };
 
@@ -193,7 +208,7 @@ function App() {
       current.map((c) => (c.id === item.id ? { ...c, rotation, status: 'processing' } : c)),
     );
     try {
-      const result = await enhanceImage(item.originalUri, rotation, item.preset);
+      const result = await enhanceImage(item.originalUri, rotation, item.preset, item.inkColor);
       setDocuments((current) =>
         current.map((c) =>
           c.id === item.id
@@ -256,6 +271,10 @@ function App() {
 
   const updatePreset = (id: string, preset: Preset) => {
     setDocuments((current) => current.map((item) => (item.id === id ? { ...item, preset } : item)));
+  };
+
+  const updateInkColor = (id: string, inkColor: string) => {
+    setDocuments((current) => current.map((item) => (item.id === id ? { ...item, inkColor } : item)));
   };
 
   const completedCount = documents.filter((item) => item.status === 'completed').length;
@@ -522,6 +541,63 @@ function App() {
                             <Trash2 size={14} />
                           </button>
                         </div>
+
+                        {/* ── Ink Color Row ── */}
+                        <div className="ink-color-row" role="group" aria-label="Ink color selection">
+                          <span className="ink-color-label">
+                            <Palette size={12} />
+                            Ink color
+                          </span>
+                          <div className="ink-swatches">
+                            {INK_SWATCHES.map((sw) => (
+                              <button
+                                key={sw.hex}
+                                type="button"
+                                className={`color-swatch${item.inkColor === sw.hex ? ' active' : ''}`}
+                                style={{ '--swatch-color': sw.hex } as React.CSSProperties}
+                                title={sw.label}
+                                aria-label={`Set ink color to ${sw.label}`}
+                                data-testid={`swatch-${item.id}-${sw.hex.replace('#', '')}`}
+                                onClick={() => updateInkColor(item.id, item.inkColor === sw.hex ? '' : sw.hex)}
+                              />
+                            ))}
+                          </div>
+                          <label className="custom-color-wrap" title="Pick any custom color">
+                            <span
+                              className="custom-color-preview"
+                              style={{ background: item.inkColor || '#555' }}
+                            />
+                            <input
+                              type="color"
+                              className="custom-color-input"
+                              value={item.inkColor || '#000000'}
+                              aria-label={`Custom ink color for ${item.name}`}
+                              data-testid={`input-ink-color-${item.id}`}
+                              onChange={(e) => updateInkColor(item.id, e.target.value)}
+                            />
+                          </label>
+                          {item.inkColor && (
+                            <button
+                              type="button"
+                              className="ink-reset-btn"
+                              title="Remove ink color override"
+                              aria-label="Remove ink color"
+                              data-testid={`button-reset-ink-${item.id}`}
+                              onClick={() => updateInkColor(item.id, '')}
+                            >
+                              ×
+                            </button>
+                          )}
+                          {item.inkColor && (
+                            <span className="ink-active-label">
+                              <span
+                                className="active-ink-dot"
+                                style={{ background: item.inkColor }}
+                              />
+                              {INK_SWATCHES.find(s => s.hex === item.inkColor)?.label ?? item.inkColor}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </article>
                   ))}
@@ -554,6 +630,56 @@ function App() {
                     ))}
                   </select>
                   <p>{PRESETS.find((p) => p.name === batchPreset)?.detail}</p>
+                </div>
+
+                {/* Global Ink Color */}
+                <div className="control-block">
+                  <label className="section-label" htmlFor="batch-ink-color">
+                    <Palette size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+                    Batch ink color
+                  </label>
+                  <div className="ink-swatches rail-swatches">
+                    {INK_SWATCHES.map((sw) => (
+                      <button
+                        key={sw.hex}
+                        type="button"
+                        className={`color-swatch${batchInkColor === sw.hex ? ' active' : ''}`}
+                        style={{ '--swatch-color': sw.hex } as React.CSSProperties}
+                        title={sw.label}
+                        aria-label={`Set batch ink color to ${sw.label}`}
+                        data-testid={`rail-swatch-${sw.hex.replace('#', '')}`}
+                        onClick={() => setBatchInkColor(batchInkColor === sw.hex ? '' : sw.hex)}
+                      />
+                    ))}
+                  </div>
+                  <div className="rail-color-row">
+                    <label className="custom-color-wrap" title="Custom batch ink color">
+                      <span className="custom-color-preview" style={{ background: batchInkColor || 'transparent' }} />
+                      <input
+                        id="batch-ink-color"
+                        type="color"
+                        className="custom-color-input"
+                        value={batchInkColor || '#000000'}
+                        aria-label="Custom batch ink color"
+                        data-testid="input-batch-ink-color"
+                        onChange={(e) => setBatchInkColor(e.target.value)}
+                      />
+                    </label>
+                    {batchInkColor && (
+                      <button
+                        type="button"
+                        className="ink-reset-btn"
+                        title="Clear batch ink color"
+                        aria-label="Clear batch ink color"
+                        onClick={() => setBatchInkColor('')}
+                      >
+                        ×
+                      </button>
+                    )}
+                    <span className="rail-color-hint">
+                      {batchInkColor ? `Active: ${INK_SWATCHES.find(s => s.hex === batchInkColor)?.label ?? batchInkColor}` : 'No override'}
+                    </span>
+                  </div>
                 </div>
 
                 <div className="control-block">

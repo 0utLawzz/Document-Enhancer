@@ -9,6 +9,8 @@ export type DocumentItem = {
   createdAt: string;
   status: DocumentStatus;
   preset: Preset;
+  /** Hex color string (e.g. '#003087') to tint dark/black ink pixels. Empty string = no recolor. */
+  inkColor?: string;
   width: number;
   height: number;
   size?: number;
@@ -139,7 +141,45 @@ function enhancePixels(pixels: Uint8ClampedArray, width: number, height: number,
   return framePixels;
 }
 
-export async function enhanceImage(originalUri: string, degrees: number, preset: Preset) {
+/**
+ * Recolors dark / black ink pixels to the supplied hex color.
+ * Bright (background) pixels are left untouched.
+ * The luminance of each dark pixel is preserved so stroke
+ * weight looks natural — thick strokes stay deep, thin strokes stay light.
+ *
+ * @param pixels  - RGBA pixel buffer (mutated in-place)
+ * @param hexColor - e.g. '#003087'. Pass '' to skip.
+ * @param threshold - luminance cutoff (0–255). Pixels darker than this are recolored.
+ */
+function recolorInk(pixels: Uint8ClampedArray, hexColor: string, threshold = 110): void {
+  if (!hexColor || hexColor === '#000000') return;
+  // Parse hex → [r, g, b]
+  const clean = hexColor.replace('#', '');
+  const tr = parseInt(clean.slice(0, 2), 16);
+  const tg = parseInt(clean.slice(2, 4), 16);
+  const tb = parseInt(clean.slice(4, 6), 16);
+  const targetLuma = Math.max(1, luminance(tr, tg, tb));
+  for (let i = 0; i < pixels.length; i += 4) {
+    const r = pixels[i];
+    const g = pixels[i + 1];
+    const b = pixels[i + 2];
+    const luma = luminance(r, g, b);
+    if (luma >= threshold) continue; // bright pixel — skip
+    // How "inky" is this pixel? 0 at threshold → 1 at pure black
+    const strength = 1 - luma / threshold;
+    // Scale the target color to match the pixel's own luminance
+    const scale = luma / targetLuma;
+    const nr = clamp(tr * scale);
+    const ng = clamp(tg * scale);
+    const nb = clamp(tb * scale);
+    // Blend: fully replace color at full strength, fade toward original at edges
+    pixels[i]     = clamp(r + (nr - r) * strength);
+    pixels[i + 1] = clamp(g + (ng - g) * strength);
+    pixels[i + 2] = clamp(b + (nb - b) * strength);
+  }
+}
+
+export async function enhanceImage(originalUri: string, degrees: number, preset: Preset, inkColor = '') {
   const image = new globalThis.Image();
   image.src = originalUri;
   await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error('Unable to load image')); });
@@ -153,7 +193,10 @@ export async function enhanceImage(originalUri: string, degrees: number, preset:
   context.rotate((degrees * Math.PI) / 180);
   context.drawImage(image, -image.width / 2, -image.height / 2);
   const frame = context.getImageData(0, 0, canvas.width, canvas.height);
-  frame.data.set(enhancePixels(frame.data, canvas.width, canvas.height, preset));
+  const enhanced = enhancePixels(frame.data, canvas.width, canvas.height, preset);
+  // Second pass: recolor dark ink pixels if a color is chosen
+  if (inkColor) recolorInk(enhanced, inkColor);
+  frame.data.set(enhanced);
   context.putImageData(frame, 0, 0);
   return { uri: canvas.toDataURL('image/jpeg', 0.96), width: canvas.width, height: canvas.height };
 }
