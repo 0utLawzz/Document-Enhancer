@@ -24,7 +24,9 @@ jobs:
           cache-dependency-path: docbright-web/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        # npm install (not ci) so package.json deps like pdfjs-dist install
+        # even if package-lock.json is slightly out of date
+        run: npm install
         working-directory: docbright-web
 
       - name: Build project
