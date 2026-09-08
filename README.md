@@ -9,7 +9,7 @@
 
 > Privacy-first browser document enhancer — improve scanned documents and photos entirely on-device. No uploads, no server, no cloud.
 
-**Live demo:** [https://0utlawzz.github.io/Document-Enhanser/](https://0utlawzz.github.io/Document-Enhanser/)
+**Live demo:** [https://0utlawzz.github.io/Document-Enhancer/](https://0utlawzz.github.io/Document-Enhancer/)
 
 ---
 
@@ -41,6 +41,8 @@ Document Enhancer (branded **DocBright** in the web app) is a client-side tool f
 | Enhancement presets | Print Ready, B&W, Photo Recovery, and additional modes |
 | Batch processing | Process multiple images in one session |
 | ZIP export | Download the full set as a single archive |
+| Ink recolor | Tint black/gray text with preset or custom hex colors |
+| PDF support | Multi-page PDFs split to images in the queue |
 | Modern UI | Dark neon styling with glass panels and micro-animations |
 | Responsive | Works on desktop and mobile browsers |
 
@@ -51,9 +53,9 @@ Document Enhancer (branded **DocBright** in the web app) is a client-side tool f
 | Layer | Technology |
 |-------|------------|
 | Frontend | React 19, TypeScript, Vite |
-| UI | Tailwind CSS, Radix UI, Framer Motion, Lucide |
-| Utilities | JSZip, Wouter, Zod, React Hook Form |
-| Hosting | GitHub Pages (workflow present) |
+| UI | CSS design system, Lucide |
+| Utilities | JSZip, pdfjs-dist, Web Canvas API |
+| Hosting | GitHub Pages |
 
 ---
 
@@ -62,16 +64,13 @@ Document Enhancer (branded **DocBright** in the web app) is a client-side tool f
 ### Prerequisites
 
 - Node.js 20+
-- npm or pnpm (workspace-aware)
+- npm
 
 ### Local development
 
 ```bash
-git clone https://github.com/0utLawzz/Document-Enhanser.git
-cd Document-Enhanser
-
-# From the web app package
-cd artifacts/docbright-web
+git clone https://github.com/0utLawzz/Document-Enhancer.git
+cd Document-Enhancer/docbright-web
 npm install
 npm run dev
 ```
@@ -81,7 +80,7 @@ Open the URL printed by Vite (typically `http://localhost:5173`).
 ### Production build
 
 ```bash
-cd artifacts/docbright-web
+cd docbright-web
 npm run build
 npm run typecheck
 ```
@@ -91,13 +90,11 @@ npm run typecheck
 ## Project Structure
 
 ```text
-artifacts/
-├── docbright-web/     # Main React + Vite application
-│   ├── src/App.tsx    # Primary UI and enhancement flow
-│   ├── src/components/
-│   └── public/
-└── api-server/        # Optional / scaffold API (not required for client-only mode)
-.github/workflows/     # GitHub Pages deploy workflow
+docbright-web/          # Main React + Vite application
+├── src/App.tsx         # Primary UI and enhancement flow
+├── src/lib/documents.ts # Canvas enhance + ink recolor + PDF→image
+└── public/
+.github/workflows/      # GitHub Pages deploy workflow
 ```
 
 ---
@@ -105,7 +102,9 @@ artifacts/
 ## Deployment
 
 GitHub Pages is configured via `.github/workflows/deploy.yml`.  
-Live URL: **https://0utlawzz.github.io/Document-Enhanser/**
+Live URL: **https://0utlawzz.github.io/Document-Enhancer/**
+
+A push to `main` rebuilds and deploys automatically.
 
 ---
 
@@ -113,7 +112,6 @@ Live URL: **https://0utlawzz.github.io/Document-Enhanser/**
 
 | Priority | Item |
 |----------|------|
-| Medium | Correct repository name spelling (`Enhanser` → `Enhancer`) if desired |
 | Medium | Expand unit tests around image-processing pipelines |
 | Low | Add before/after comparison slider |
 | Low | Optional OCR (client-side) for searchable PDFs |
