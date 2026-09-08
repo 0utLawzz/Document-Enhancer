@@ -142,38 +142,57 @@ function enhancePixels(pixels: Uint8ClampedArray, width: number, height: number,
 }
 
 /**
- * Recolors dark / black ink pixels to the supplied hex color.
- * Bright (background) pixels are left untouched.
- * The luminance of each dark pixel is preserved so stroke
- * weight looks natural — thick strokes stay deep, thin strokes stay light.
+ * Recolors dark / black / gray ink pixels to the supplied hex color.
+ * Covers pure black through light gray so scanned text strokes of all
+ * densities pick up the tint. Background (paper) pixels stay untouched.
  *
- * @param pixels  - RGBA pixel buffer (mutated in-place)
- * @param hexColor - e.g. '#003087'. Pass '' to skip.
- * @param threshold - luminance cutoff (0–255). Pixels darker than this are recolored.
+ * Color is applied slightly darker than the chosen swatch so the result
+ * reads as solid ink, not a washed pastel.
+ *
+ * @param pixels   - RGBA pixel buffer (mutated in-place)
+ * @param hexColor - e.g. '#003087'. Pass '' or invalid to skip.
+ * @param threshold - luminance cutoff (0–255). Default 195 catches
+ *                    dark gray and medium gray strokes as well as black.
  */
-function recolorInk(pixels: Uint8ClampedArray, hexColor: string, threshold = 110): void {
-  if (!hexColor || hexColor === '#000000') return;
-  // Parse hex → [r, g, b]
-  const clean = hexColor.replace('#', '');
-  const tr = parseInt(clean.slice(0, 2), 16);
-  const tg = parseInt(clean.slice(2, 4), 16);
-  const tb = parseInt(clean.slice(4, 6), 16);
+function recolorInk(pixels: Uint8ClampedArray, hexColor: string, threshold = 195): void {
+  if (!hexColor) return;
+  const clean = hexColor.replace(/^#/, '').trim();
+  if (clean.length !== 6 && clean.length !== 3) return;
+  const expand = (s: string) =>
+    s.length === 3 ? s[0] + s[0] + s[1] + s[1] + s[2] + s[2] : s;
+  const full = expand(clean);
+  let tr = parseInt(full.slice(0, 2), 16);
+  let tg = parseInt(full.slice(2, 4), 16);
+  let tb = parseInt(full.slice(4, 6), 16);
+  if (Number.isNaN(tr) || Number.isNaN(tg) || Number.isNaN(tb)) return;
+
+  // Push the target a bit darker so ink looks solid (not pastel)
+  const darken = 0.72;
+  tr = Math.round(tr * darken);
+  tg = Math.round(tg * darken);
+  tb = Math.round(tb * darken);
+
   const targetLuma = Math.max(1, luminance(tr, tg, tb));
+
   for (let i = 0; i < pixels.length; i += 4) {
     const r = pixels[i];
     const g = pixels[i + 1];
     const b = pixels[i + 2];
     const luma = luminance(r, g, b);
-    if (luma >= threshold) continue; // bright pixel — skip
-    // How "inky" is this pixel? 0 at threshold → 1 at pure black
-    const strength = 1 - luma / threshold;
-    // Scale the target color to match the pixel's own luminance
-    const scale = luma / targetLuma;
+    if (luma >= threshold) continue; // paper / bright pixel — skip
+
+    // Strength: 1 at pure black → 0 at threshold (smooth falloff)
+    const t = luma / threshold;
+    const strength = 1 - t * t; // quadratic: stronger mid-tones
+
+    // Map original darkness onto the (already darkened) target hue
+    // Keep relative stroke weight: darker pixels stay darker in the new color
+    const scale = Math.min(1, (luma + 8) / (targetLuma + 8));
     const nr = clamp(tr * scale);
     const ng = clamp(tg * scale);
     const nb = clamp(tb * scale);
-    // Blend: fully replace color at full strength, fade toward original at edges
-    pixels[i]     = clamp(r + (nr - r) * strength);
+
+    pixels[i] = clamp(r + (nr - r) * strength);
     pixels[i + 1] = clamp(g + (ng - g) * strength);
     pixels[i + 2] = clamp(b + (nb - b) * strength);
   }
@@ -210,4 +229,44 @@ export function formatBytes(bytes?: number) {
   if (!bytes) return 'SIZE UNKNOWN';
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/** Render every page of a PDF to JPEG data-URLs (client-side via pdf.js). */
+export async function pdfToImages(
+  file: File,
+  options: { scale?: number; quality?: number } = {},
+): Promise<Array<{ uri: string; width: number; height: number; page: number }>> {
+  const scale = options.scale ?? 2;
+  const quality = options.quality ?? 0.92;
+
+  // Dynamic import keeps the main bundle lean when PDFs are not used
+  const pdfjs = await import('pdfjs-dist');
+  // Vite-friendly worker
+  pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).toString();
+
+  const data = new Uint8Array(await file.arrayBuffer());
+  const doc = await pdfjs.getDocument({ data }).promise;
+  const pages: Array<{ uri: string; width: number; height: number; page: number }> = [];
+
+  for (let pageNum = 1; pageNum <= doc.numPages; pageNum += 1) {
+    const page = await doc.getPage(pageNum);
+    const viewport = page.getViewport({ scale });
+    const canvas = globalThis.document.createElement('canvas');
+    canvas.width = Math.floor(viewport.width);
+    canvas.height = Math.floor(viewport.height);
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable');
+    await page.render({ canvasContext: context, viewport, canvas }).promise;
+    pages.push({
+      uri: canvas.toDataURL('image/jpeg', quality),
+      width: canvas.width,
+      height: canvas.height,
+      page: pageNum,
+    });
+  }
+
+  return pages;
 }
